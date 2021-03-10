@@ -1,0 +1,23 @@
+---
+title: "County Population"
+author: "Kamau Kamau"
+date: "10/03/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,message = F,warning =F)
+```
+
+# read the data (and transform it)
+
+```{r}
+library(tidyverse)
+library(reshape2)
+df = read_csv("County_Population_data_2009.csv")
+df_melt <- df %>% select(!X1) %>% melt(id.vars = c("Age","County"))
+```
+
+# visualize the data ( map)
