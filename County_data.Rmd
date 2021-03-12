@@ -22,22 +22,57 @@ df = read_csv("County_Population_data_2009.csv")
 df_melt <- df %>% select(!X1) %>% melt(id.vars = c("Age","County"))
 ```
 
-#loading county shapefile
-```{r}
-county_shp<-readOGR("./www/KEN_adm/ken_admbnda_adm1_iebc_20191031.shp")
-plot(county_shp)
-```
-
 # exploring dataset
 ```{r}
 head(df_melt)
 unique(df_melt$Age) #checking unique ages for inconsistencies
-unique(df_melt$County)
+unique(df_melt$County) #checking for unique county names
 ```
+
+
+#loading county shapefile
+```{r}
+county_shp<-readOGR("./www/KEN_adm/ken_admbnda_adm1_iebc_20191031.shp")
+
+#filtering columns to work with
+county_sub<-county_shp[,1:4]
+
+head(county_sub)
+#plot(county_shp)
+```
+
+#compare if shapefile and pop data county names match 
+```{r}
+county_names<-unique(df_melt$County)
+county_diff<-setdiff(county_sub$ADM1_EN,county_names)
+county_diff
+```
+#renaming the incorrect county names
+```{r}
+df_rename<-df_melt %>% mutate(
+  County=factor(County),
+  County=fct_recode(County,
+                    "Elgeyo-Marakwet"="ElgeyoMarakwet",
+                    "Homa Bay"="HomaBay",
+                    "Murang'a" = "Muranga",
+                     "Taita Taveta"=  "TaitaTaveta",
+                     "Tharaka-Nithi"= "TharakaNithi",
+                     "Trans Nzoia"= "TransNzoia",
+                     "Uasin Gishu" = "UasinGishu",
+                     "West Pokot"= "WestPokot"
+                    
+                    )
+)
+
+#checking if there are any other mismatch in county names
+setdiff(county_sub$ADM1_EN, unique(df_rename$County)) # Tana River county is missing from the dataset
+```
+
+
 
 #renaming inconsistent ages to correct ones
 ```{r}
-df_age<-df_melt %>% mutate(
+df_age<-df_rename %>% mutate(
   Age=factor(Age),
   Age=fct_recode(
     Age,
@@ -53,10 +88,60 @@ head(df_age)
 unique(df_age$Age) #checking for unique consistent unique ages
 ```
 
-#
+#filtering pop 0-10 years dataset
 ```{r}
 #names(df_age)
 #df_age %>% group_by(variable) %>% count()
 
+#filtering 0-10
+df_10F<-df_age %>% filter(Age=="0 - 10", variable=="Female")
+df_10M<-df_age %>% filter(Age=="0 - 10", variable=="Male")
+```
+
+#merging county shapefile with the  pop 0-10 years dataset
+```{r}
+df_10Fplot<-merge(county_sub, df_10F, by.x="ADM1_EN",by.y="County")
+df_10Mplot<-merge(county_sub, df_10M, by.x="ADM1_EN",by.y="County")
+head(df_10Fplot)
+```
+
+#fortify shapefile
+```{r}
+df_10Fplot@data$id<-rownames(df_10Fplot@data)
+
+#create df from spatial object
+data_10F<-fortify(df_10Fplot,region = "id")
+
+#merge fortified data with data from spatial object
+df10F_map<-merge(data_10F,df_10Fplot@data,by="id")
+head(df10F_map)
+```
+
+#mapping df10F_map
+```{r}
+library(scales)
+#library(ggthemes)
+ggplot(data =df10F_map,aes(x=long, y=lat,group=group,fill=value))+
+    geom_polygon()+
+    scale_fill_continuous(label=comma)+
+    scale_fill_viridis_c(option = "C",direction = -1)+
+    #scale_fill_distiller(palette ="YlGnBu",direction=1)+
+    geom_path(color="white")+
+    coord_equal() +
+   #guides(fill = guide_legend(reverse = T))+
+  labs(
+    fill="Female population (0 to 10 years)",
+    title = "Female population (0 to 10 years) per county."
+  )+
+  theme(panel.background=element_blank(),
+         plot.title = element_text(size = 16),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+        )
+
+ggsave("www/Female pop (0-10).png")
 ```
 
